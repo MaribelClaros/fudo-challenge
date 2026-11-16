@@ -1,0 +1,18 @@
+# Ruby / Bundler
+/.bundle/
+/vendor/bundle/
+*.gem
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs, temp files and coverage
+/log/
+/tmp/
+/coverage/
+
+# OS / editor files
+.DS_Store
+.vscode/-
