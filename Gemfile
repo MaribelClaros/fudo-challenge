@@ -4,9 +4,11 @@ source 'https://rubygems.org'
 
 ruby file: '.ruby-version'
 
+gem 'bcrypt' # password hashing
 gem 'pg'     # PostgreSQL driver
 gem 'puma'   # web server
 gem 'rack'   # web server interface
+gem 'rake'   # task runner (migrations, seeds)
 gem 'sequel' # database toolkit and migrations
 
 group :development do

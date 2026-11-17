@@ -3,8 +3,20 @@
 ENV['RACK_ENV'] = 'test'
 
 require_relative '../config/boot'
+
+Sequel.extension :migration
+begin
+  Sequel::Migrator.check_current(DB, File.expand_path('../db/migrations', __dir__))
+rescue Sequel::Migrator::NotCurrentError
+  abort 'The test database has pending migrations. Run: RACK_ENV=test bundle exec rake db:migrate'
+end
+
 require_relative '../lib/app'
+require 'bcrypt'
 require 'rack/test'
+
+# The minimum bcrypt cost keeps password hashing fast in tests; production uses the default (12).
+BCrypt::Engine.cost = BCrypt::Engine::MIN_COST
 
 Dir[File.join(__dir__, 'support/**/*.rb')].each { |file| require file }
 
