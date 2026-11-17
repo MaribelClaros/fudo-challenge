@@ -1,12 +1,25 @@
 # frozen_string_literal: true
 
-source "https://rubygems.org"
+source 'https://rubygems.org'
 
-ruby file: ".ruby-version"
+ruby file: '.ruby-version'
 
-gem "pg"        # PostgreSQL driver
-gem "sequel"    # database toolkit and migrations
+gem 'pg'     # PostgreSQL driver
+gem 'puma'   # web server
+gem 'rack'   # web server interface
+gem 'sequel' # database toolkit and migrations
 
-gem "dotenv", "~> 3.2", groups: [:development, :test]   # loads .env in local environments
+group :development do
+  gem 'irb', '~> 1.19' # interactive console (bin/console)
+end
 
-gem "irb", "~> 1.19", group: :development
+group :development, :test do
+  gem 'dotenv', '~> 3.2'              # loads .env in local environments
+  gem 'rubocop', require: false       # linter
+  gem 'rubocop-rspec', require: false # RSpec-specific lint rules
+end
+
+group :test do
+  gem 'rack-test' # sends HTTP requests to the Rack app in specs
+  gem 'rspec'     # test framework
+end
