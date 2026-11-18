@@ -13,6 +13,9 @@ module Middleware
     PUBLIC_PATHS = ['/health', '/auth'].freeze
     USER_ID_KEY = 'app.user_id'
 
+    # The authenticated user's id, for controllers behind this middleware.
+    def self.user_id(request) = request.env[USER_ID_KEY]
+
     def initialize(app)
       @app = app
     end

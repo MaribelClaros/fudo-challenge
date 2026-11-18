@@ -13,3 +13,4 @@ require_relative 'settings'
 Settings.validate!
 
 require_relative 'database'
+require_relative 'queue'

@@ -6,6 +6,8 @@ require_relative 'middleware/error_handler'
 require_relative 'middleware/authentication'
 require_relative 'controllers/health'
 require_relative 'controllers/auth'
+require_relative 'controllers/products'
+require_relative 'controllers/product_requests'
 
 # Builds the Rack application: middleware stack + routes.
 module App
@@ -24,6 +26,9 @@ module App
     Router.new do
       get '/health', to: Controllers::Health.method(:show)
       post '/auth', to: Controllers::Auth.method(:create)
+      get '/products', to: Controllers::Products.method(:index)
+      post '/products', to: Controllers::Products.method(:create)
+      get '/products/requests/:id', to: Controllers::ProductRequests.method(:show)
     end
   end
 end

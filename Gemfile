@@ -4,13 +4,14 @@ source 'https://rubygems.org'
 
 ruby file: '.ruby-version'
 
-gem 'bcrypt' # password hashing
-gem 'jwt'    # JSON Web Tokens for authentication
-gem 'pg'     # PostgreSQL driver
-gem 'puma'   # web server
-gem 'rack'   # web server interface
-gem 'rake'   # task runner (migrations, seeds)
-gem 'sequel' # database toolkit and migrations
+gem 'bcrypt'  # password hashing
+gem 'jwt'     # JSON Web Tokens for authentication
+gem 'pg'      # PostgreSQL driver
+gem 'puma'    # web server
+gem 'rack'    # web server interface
+gem 'rake'    # task runner (migrations, seeds)
+gem 'sequel'  # database toolkit and migrations
+gem 'sidekiq' # background job queue (Redis)
 
 group :development do
   gem 'irb', '~> 1.19' # interactive console (bin/console)

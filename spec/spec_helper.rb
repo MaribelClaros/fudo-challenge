@@ -15,6 +15,9 @@ require_relative '../lib/app'
 require 'bcrypt'
 require 'rack/test'
 
+# Jobs are stored in memory (CreateProductJob.jobs) instead of Redis; specs run them explicitly.
+Sidekiq.testing!(:fake)
+
 # The minimum bcrypt cost keeps password hashing fast in tests; production uses the default (12).
 BCrypt::Engine.cost = BCrypt::Engine::MIN_COST
 
@@ -22,6 +25,7 @@ Dir[File.join(__dir__, 'support/**/*.rb')].each { |file| require file }
 
 RSpec.configure do |config|
   config.include EnvHelpers
+  config.include Factories
   config.include Rack::Test::Methods, type: :request
   config.include RequestHelpers, type: :request
 
@@ -32,6 +36,8 @@ RSpec.configure do |config|
   config.around do |example|
     DB.transaction(rollback: :always, auto_savepoint: true) { example.run }
   end
+
+  config.before { Sidekiq::Job.clear_all }
 
   config.order = :random
   Kernel.srand config.seed

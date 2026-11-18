@@ -19,6 +19,8 @@ module Settings
   def jwt_secret = fetch!('JWT_SECRET')
   def jwt_ttl_seconds = Integer(ENV.fetch('JWT_TTL_SECONDS', '3600'))
 
+  def redis_url = fetch!('REDIS_URL')
+
   def validate!
     missing = required_keys.select { |key| ENV[key].to_s.strip.empty? }
     raise MissingConfigError, "Missing required environment variables: #{missing.join(', ')}" if missing.any?
@@ -29,7 +31,7 @@ module Settings
 
   # The test suite uses its own database so it never touches development data.
   def database_url_key = test? ? 'TEST_DATABASE_URL' : 'DATABASE_URL'
-  def required_keys = [database_url_key, 'JWT_SECRET']
+  def required_keys = [database_url_key, 'JWT_SECRET', 'REDIS_URL']
 
   def fetch!(key)
     ENV.fetch(key) { raise MissingConfigError, "Missing required environment variable: #{key}" }
