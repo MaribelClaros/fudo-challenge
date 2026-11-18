@@ -14,6 +14,7 @@ class Router
   end
 
   def get(path, to:) = add('GET', path, to)
+  def post(path, to:) = add('POST', path, to)
 
   def call(env)
     request = Rack::Request.new(env)

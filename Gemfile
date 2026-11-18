@@ -5,6 +5,7 @@ source 'https://rubygems.org'
 ruby file: '.ruby-version'
 
 gem 'bcrypt' # password hashing
+gem 'jwt'    # JSON Web Tokens for authentication
 gem 'pg'     # PostgreSQL driver
 gem 'puma'   # web server
 gem 'rack'   # web server interface
