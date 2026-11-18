@@ -5,6 +5,7 @@ GEM
     base64 (0.3.0)
     bcrypt (3.1.22)
     bigdecimal (4.1.3)
+    connection_pool (3.0.3)
     diff-lcs (1.6.2)
     dotenv (3.2.0)
     erb (6.0.7)
@@ -61,6 +62,8 @@ GEM
       prism (>= 1.6.0)
       rbs (>= 4.0.0)
       tsort
+    redis-client (0.31.0)
+      connection_pool
     regexp_parser (2.13.3)
     reline (0.7.0)
       io-console (~> 0.5)
@@ -98,6 +101,12 @@ GEM
     ruby-progressbar (1.13.0)
     sequel (5.110.0)
       bigdecimal
+    sidekiq (8.1.7)
+      connection_pool (>= 3.0.0)
+      json (>= 2.16.0)
+      logger (>= 1.7.0)
+      rack (>= 3.2.0)
+      redis-client (>= 0.29.0)
     tsort (0.2.0)
     unicode-display_width (3.3.0)
       unicode-emoji (~> 4.3)
@@ -129,6 +138,7 @@ DEPENDENCIES
   rubocop
   rubocop-rspec
   sequel
+  sidekiq
 
 RUBY VERSION
    ruby 3.4.12p148

@@ -12,15 +12,6 @@ module Controllers
   # Endpoints for the authenticated user's products.
   module Products
     MAX_NAME_LENGTH = 255
-    MAX_IDEMPOTENCY_KEY_LENGTH = 255
-
-    # How each failure of RequestProductCreation is reported to the client.
-    CREATION_ERRORS = {
-      RequestProductCreation::NameTaken => [409, 'name_taken'],
-      RequestProductCreation::AlreadyPending => [409, 'creation_already_pending'],
-      RequestProductCreation::IdempotencyKeyReused => [422, 'idempotency_key_reused'],
-      RequestProductCreation::QueueUnavailable => [503, 'queue_unavailable']
-    }.freeze
 
     module_function
 
@@ -32,17 +23,17 @@ module Controllers
       JsonResponse.build(200, { data: page.records.map(&:to_api), next_cursor: page.next_cursor })
     end
 
-    # POST /products: accepts a creation request. The product becomes available
-    # DELAY_SECONDS later; poll the URL in the Location header to follow it.
+    # POST /products: asks for a product to be created DELAY_SECONDS later.
+    # 202 while the creation is pending (poll the Location URL), 200 if the product already exists.
+    # Repeating the same name never creates a second product.
     def create(request, _params)
       product_request = RequestProductCreation.call(
         user_id: Middleware::Authentication.user_id(request),
-        name: name_from(JsonBody.parse(request)),
-        idempotency_key: idempotency_key_from(request)
+        name: name_from(JsonBody.parse(request))
       )
-      accepted(product_request)
-    rescue *CREATION_ERRORS.keys => e
-      raise HttpError.new(*CREATION_ERRORS.fetch(e.class))
+      respond_with(product_request)
+    rescue RequestProductCreation::QueueUnavailable
+      raise HttpError.new(503, 'queue_unavailable')
     end
 
     def name_from(body)
@@ -54,21 +45,12 @@ module Controllers
                           details: { 'name' => "must be a non-empty string of at most #{MAX_NAME_LENGTH} characters" })
     end
 
-    def idempotency_key_from(request)
-      key = request.get_header('HTTP_IDEMPOTENCY_KEY')
-      return key if key.nil? || key.length.between?(1, MAX_IDEMPOTENCY_KEY_LENGTH)
+    def respond_with(product_request)
+      location = { 'location' => "/products/requests/#{product_request.id}" }
+      return JsonResponse.build(200, product_request.to_api, location) unless product_request.pending?
 
-      raise HttpError.new(422, 'invalid_params',
-                          details: { 'idempotency_key' => "must be 1 to #{MAX_IDEMPOTENCY_KEY_LENGTH} characters" })
-    end
-
-    def accepted(product_request)
-      JsonResponse.build(
-        202,
-        product_request.to_api,
-        { 'location' => "/products/requests/#{product_request.id}",
-          'retry-after' => RequestProductCreation::DELAY_SECONDS.to_s }
-      )
+      JsonResponse.build(202, product_request.to_api,
+                         location.merge('retry-after' => RequestProductCreation::DELAY_SECONDS.to_s))
     end
   end
 end

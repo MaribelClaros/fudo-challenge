@@ -3,9 +3,8 @@
 RSpec.describe 'POST /products', type: :request do
   let(:user) { create_user }
 
-  def create_product_request(body, headers = {})
-    headers.each { |name, value| header name, value }
-    post '/products', JSON.generate(body), 'CONTENT_TYPE' => 'application/json'
+  def create_product_request(name)
+    post '/products', JSON.generate(name:), 'CONTENT_TYPE' => 'application/json'
   end
 
   def json_body = JSON.parse(last_response.body)
@@ -17,16 +16,16 @@ RSpec.describe 'POST /products', type: :request do
 
   context 'without a token' do
     it 'returns 401' do
-      create_product_request(name: 'Mate')
+      create_product_request('Mate')
 
       expect(last_response.status).to eq(401)
     end
   end
 
-  context 'with a valid name' do
+  context 'with a new name' do
     before do
       authenticate_as(user.id)
-      create_product_request(name: 'Mate')
+      create_product_request('Mate')
     end
 
     it 'accepts the request with 202 and a pending status', :aggregate_failures do
@@ -56,24 +55,95 @@ RSpec.describe 'POST /products', type: :request do
     end
   end
 
-  context 'when the user already has a product with that name' do
-    it 'returns 409 name_taken', :aggregate_failures do
-      create_product(user:, name: 'Mate')
+  context 'when the same name is already pending' do
+    let!(:first_id) do
       authenticate_as(user.id)
-      create_product_request(name: 'Mate')
+      create_product_request('Mate')
+      json_body['id']
+    end
 
-      expect(last_response.status).to eq(409)
-      expect(json_body).to eq('error' => 'name_taken')
+    it 'returns the same pending request with 202', :aggregate_failures do
+      create_product_request('Mate')
+
+      expect(last_response.status).to eq(202)
+      expect(json_body['id']).to eq(first_id)
+    end
+
+    it 'does not enqueue another job' do
+      create_product_request('Mate')
+
+      expect(CreateProductJob.jobs.size).to eq(1)
+    end
+
+    it 'treats names that differ only in case as the same request' do
+      create_product_request('MATE')
+
+      expect(json_body['id']).to eq(first_id)
     end
   end
 
-  context 'when a creation with that name is already pending' do
-    it 'returns 409 creation_already_pending', :aggregate_failures do
+  context 'when the product already exists' do
+    before do
       authenticate_as(user.id)
-      2.times { create_product_request(name: 'Mate') }
+      create_product_request('Mate')
+      CreateProductJob.drain
+    end
 
-      expect(last_response.status).to eq(409)
-      expect(json_body).to eq('error' => 'creation_already_pending')
+    it 'returns the completed request with 200 and enqueues nothing', :aggregate_failures do
+      create_product_request('mate')
+
+      expect(last_response.status).to eq(200)
+      expect(json_body).to include('name' => 'Mate', 'status' => 'completed')
+      expect(CreateProductJob.jobs).to be_empty
+    end
+
+    it 'never creates a second product, however many times it is asked' do
+      3.times { create_product_request('Mate') }
+      CreateProductJob.drain
+
+      expect(product_names).to eq(['Mate'])
+    end
+  end
+
+  context 'when the product was created without a request' do
+    it 'returns a completed request pointing to it', :aggregate_failures do
+      product = create_product(user:, name: 'Mate')
+      authenticate_as(user.id)
+      create_product_request('Mate')
+
+      expect(last_response.status).to eq(200)
+      expect(json_body).to include('status' => 'completed', 'product_id' => product.id)
+    end
+  end
+
+  context 'when a previous request for that name failed' do
+    it 'accepts a new request so the creation can be retried', :aggregate_failures do
+      failed = ProductRequest.create(user_id: user.id, name: 'Mate', status: 'failed', error: 'queue_unavailable')
+      authenticate_as(user.id)
+      create_product_request('Mate')
+
+      expect(last_response.status).to eq(202)
+      expect(json_body['id']).not_to eq(failed.id)
+    end
+  end
+
+  context 'when a concurrent request for the same name is inserted first' do
+    let(:competitor) { ProductRequest.new(user_id: user.id, name: 'Mate') }
+
+    # Simulates another POST winning the race: its request is saved right before ours.
+    before do
+      allow(ProductRequest).to receive(:create).and_wrap_original do |create, **attributes|
+        competitor.save if competitor.new?
+        create.call(**attributes)
+      end
+      authenticate_as(user.id)
+    end
+
+    it 'returns that request instead of failing', :aggregate_failures do
+      create_product_request('Mate')
+
+      expect(last_response.status).to eq(202)
+      expect(json_body['id']).to eq(competitor.id)
     end
   end
 
@@ -81,30 +151,9 @@ RSpec.describe 'POST /products', type: :request do
     it 'accepts the request' do
       create_product(user: create_user, name: 'Mate')
       authenticate_as(user.id)
-      create_product_request(name: 'Mate')
+      create_product_request('Mate')
 
       expect(last_response.status).to eq(202)
-    end
-  end
-
-  context 'when retried with the same Idempotency-Key' do
-    before { authenticate_as(user.id) }
-
-    it 'returns the original request without enqueuing a second job', :aggregate_failures do
-      create_product_request({ name: 'Mate' }, 'Idempotency-Key' => 'key-1')
-      first_response = json_body
-      create_product_request({ name: 'Mate' }, 'Idempotency-Key' => 'key-1')
-
-      expect(json_body).to eq(first_response)
-      expect(CreateProductJob.jobs.size).to eq(1)
-    end
-
-    it 'rejects the key when reused for a different name', :aggregate_failures do
-      create_product_request({ name: 'Mate' }, 'Idempotency-Key' => 'key-1')
-      create_product_request({ name: 'Yerba' }, 'Idempotency-Key' => 'key-1')
-
-      expect(last_response.status).to eq(422)
-      expect(json_body).to eq('error' => 'idempotency_key_reused')
     end
   end
 
@@ -113,7 +162,7 @@ RSpec.describe 'POST /products', type: :request do
 
     [nil, '', '   ', 123, 'x' * 256].each do |name|
       it "rejects #{name.inspect[0, 20]} with 422", :aggregate_failures do
-        create_product_request(name:)
+        create_product_request(name)
 
         expect(last_response.status).to eq(422)
         expect(json_body['details'].keys).to eq(['name'])
@@ -124,7 +173,7 @@ RSpec.describe 'POST /products', type: :request do
   context 'with surrounding whitespace in the name' do
     it 'stores the trimmed name' do
       authenticate_as(user.id)
-      create_product_request(name: '  Mate  ')
+      create_product_request('  Mate  ')
 
       expect(json_body['name']).to eq('Mate')
     end
@@ -134,7 +183,7 @@ RSpec.describe 'POST /products', type: :request do
     before do
       allow(CreateProductJob).to receive(:perform_in).and_raise(RedisClient::CannotConnectError)
       authenticate_as(user.id)
-      create_product_request(name: 'Mate')
+      create_product_request('Mate')
     end
 
     it 'returns 503 queue_unavailable' do

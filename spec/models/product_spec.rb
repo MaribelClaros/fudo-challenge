@@ -10,6 +10,12 @@ RSpec.describe Product do
       expect { create_product(user:, name: 'Mate') }.to raise_error(Sequel::UniqueConstraintViolation)
     end
 
+    it 'ignores case when comparing names' do
+      create_product(user:, name: 'Mate')
+
+      expect { create_product(user:, name: 'MATE') }.to raise_error(Sequel::UniqueConstraintViolation)
+    end
+
     it 'allows the same name for different users' do
       create_product(user:, name: 'Mate')
 

@@ -26,8 +26,8 @@ RSpec.describe CreateProductJob do
   end
 
   context 'when the user already has a product with that name' do
-    it 'fails the request with name_taken' do
-      create_product(user:, name: 'Mate')
+    it 'fails the request with name_taken, ignoring case' do
+      create_product(user:, name: 'mate')
       run_job
 
       expect(request.reload).to have_attributes(status: 'failed', error: 'name_taken')

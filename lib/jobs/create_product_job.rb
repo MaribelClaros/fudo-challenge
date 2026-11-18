@@ -10,6 +10,7 @@ require_relative '../models/product_request'
 # It is idempotent: the request row is locked and only processed while still pending.
 class CreateProductJob
   include Sidekiq::Job
+
   sidekiq_options retry: 5
 
   # After the last retry, don't leave the request pending forever.

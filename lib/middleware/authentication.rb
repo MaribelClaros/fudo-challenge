@@ -10,7 +10,7 @@ module Middleware
   # Unknown paths are not public, so unauthenticated clients get 401 instead of 404:
   # they can't probe the API to discover which routes exist.
   class Authentication
-    PUBLIC_PATHS = ['/health', '/auth'].freeze
+    PUBLIC_PATHS = ['/health', '/auth', '/AUTHORS'].freeze
     USER_ID_KEY = 'app.user_id'
 
     # The authenticated user's id, for controllers behind this middleware.

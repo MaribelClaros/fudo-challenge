@@ -5,41 +5,49 @@ require_relative '../models/product'
 require_relative '../models/product_request'
 require_relative '../jobs/create_product_job'
 
-# Records a request to create a product and schedules the job that creates it
-# DELAY_SECONDS later. The product does not exist when this returns.
+# Asks for a product to be created DELAY_SECONDS later and returns the ProductRequest that
+# tracks it.
+#
+# Idempotent by (user, name), compared case-insensitively: a user can't have two products with
+# the same name, so asking for the same name again is the same request. It returns:
+# - the pending request, if that creation is already under way;
+# - the completed request, if the product already exists;
+# - otherwise (including after a failed attempt) a new pending request.
 module RequestProductCreation
   DELAY_SECONDS = 5
 
-  class NameTaken < StandardError; end
-  class AlreadyPending < StandardError; end
-  class IdempotencyKeyReused < StandardError; end
   class QueueUnavailable < StandardError; end
 
   module_function
 
-  # Returns the ProductRequest. With an Idempotency-Key that was already used,
-  # returns the original request instead of creating a new one.
-  def call(user_id:, name:, idempotency_key: nil)
-    existing = idempotency_key && ProductRequest.first(user_id:, idempotency_key:)
-    return replay(existing, name) if existing
-    raise NameTaken unless Product.where(user_id:, name:).empty?
+  def call(user_id:, name:)
+    existing_request(user_id, name) || new_request(user_id, name)
+  end
 
-    request = insert_request(user_id, name, idempotency_key)
+  def existing_request(user_id, name)
+    pending_request(user_id, name) || completed_request(user_id, name)
+  end
+
+  def pending_request(user_id, name)
+    ProductRequest.where(user_id:, status: 'pending').where(same_name(name)).first
+  end
+
+  # The request that created the product. A product inserted some other way gets one recorded.
+  def completed_request(user_id, name)
+    product = Product.where(user_id:).where(same_name(name)).first
+    return unless product
+
+    ProductRequest.where(product_id: product.id).order(:id).first ||
+      ProductRequest.create(user_id:, name: product.name, status: 'completed', product_id: product.id)
+  end
+
+  def new_request(user_id, name)
+    request = ProductRequest.create(user_id:, name:)
     enqueue(request)
     request
-  end
-
-  def replay(existing, name)
-    raise IdempotencyKeyReused unless existing.name == name
-
-    existing
-  end
-
-  def insert_request(user_id, name, idempotency_key)
-    ProductRequest.create(user_id:, name:, idempotency_key:)
   rescue Sequel::UniqueConstraintViolation
-    # Another request for this name (or with this key) was just created and is still pending.
-    raise AlreadyPending
+    # A concurrent request for the same name was inserted first: that one is the request.
+    existing_request(user_id, name) || raise
   end
 
   # Enqueued after the request is committed, so the job always finds it. If Redis is down
@@ -50,4 +58,7 @@ module RequestProductCreation
     request.update(status: 'failed', error: 'queue_unavailable')
     raise QueueUnavailable
   end
+
+  # lower(name) = lower(?): case-insensitive, and served by the indexes on lower(name).
+  def same_name(name) = { Sequel.function(:lower, :name) => Sequel.function(:lower, name) }
 end

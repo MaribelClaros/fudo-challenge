@@ -4,3 +4,8 @@ plugins:
 AllCops:
   NewCops: enable
   SuggestExtensions: false
+
+# Migrations describe a whole schema change in a single block; splitting them hurts readability.
+Metrics/BlockLength:
+  Exclude:
+    - 'db/migrations/**/*'
