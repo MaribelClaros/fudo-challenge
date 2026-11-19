@@ -1,0 +1,18 @@
+# Keep the image small and free of secrets: only what the app needs at runtime.
+.git
+.env
+.env.*
+!.env.example
+log/
+tmp/
+coverage/
+spec/
+docs/
+.rspec
+.rubocop.yml
+.idea/
+.vscode/
+.DS_Store
+Dockerfile
+.dockerignore
+docker-compose.yml

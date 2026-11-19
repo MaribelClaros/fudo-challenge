@@ -15,7 +15,6 @@ require_relative '../lib/app'
 require 'bcrypt'
 require 'rack/test'
 
-# Jobs are stored in memory (CreateProductJob.jobs) instead of Redis; specs run them explicitly.
 Sidekiq.testing!(:fake)
 
 # The minimum bcrypt cost keeps password hashing fast in tests; production uses the default (12).

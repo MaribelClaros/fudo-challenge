@@ -1,0 +1,1164 @@
+{
+  "info": {
+    "_postman_id": "514e1505-9b2d-49f4-84a7-07c17e7f661f",
+    "name": "Fudo Challenge API",
+    "description": "Requests for every endpoint of the API.\n\n1. Run **Auth / Log in**: it stores the access token in the `token` collection variable, and every other request sends it automatically.\n2. Run **Products / Create product**, then **Get creation status**: it is `pending` for about 5 seconds and then `completed`.\n3. **List products** shows it once completed.\n\nChange `baseUrl`, `username`, `password` or `productName` in the collection variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:9292"
+    },
+    {
+      "key": "username",
+      "value": "demo"
+    },
+    {
+      "key": "password",
+      "value": "demo-password"
+    },
+    {
+      "key": "productName",
+      "value": "Termo"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "requestId",
+      "value": ""
+    },
+    {
+      "key": "nextCursor",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Log in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "**What it does**\n\nExchanges a username and password for an access token (a JWT valid for 1 hour). The test script saves it in the `token` collection variable, and every other request sends it as `Authorization: Bearer {{token}}`.\n\n**Input**\n\n- Headers: `Content-Type: application/json`\n- Body:\n\n| Field | Type | Required | Description |\n|---|---|---|---|\n| `username` | string | yes | Case-sensitive. |\n| `password` | string | yes | |\n\n```json\n{\"username\": \"demo\", \"password\": \"demo-password\"}\n```\n\n**Output**\n\n| Status | When | Body |\n|---|---|---|\n| `200` | Valid credentials. Comes with `Cache-Control: no-store`. | `{\"access_token\": \"eyJ...\", \"token_type\": \"Bearer\", \"expires_in\": 3600}` |\n| `401` | Wrong username or password. Same response in both cases, so it doesn't reveal which users exist. | `{\"error\": \"invalid_credentials\"}` |\n| `422` | A field is missing, empty or not a string. | `{\"error\": \"invalid_params\", \"details\": {\"username\": \"must be a non-empty string\"}}` |\n| `400` | The body is not a JSON object. | `{\"error\": \"invalid_json\"}` |\n| `415` | The `Content-Type` is not `application/json`. | `{\"error\": \"unsupported_media_type\"}` |\n| `413` | The body is larger than 16 KB. | `{\"error\": \"payload_too_large\"}` |\n\n`expires_in` is the token lifetime in seconds. When the token expires, log in again."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token', body.access_token);",
+                  "pm.test('token saved for the other requests', () => pm.expect(body.access_token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK - logged in",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"access_token\": \"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzk1MTA1OTMwLCJleHAiOjE3OTUxMDk1MzB9.QBzHuBxl2VCbvGNv5vZUkinUACtxwD2n019EZ2H8XuE\",\n  \"token_type\": \"Bearer\",\n  \"expires_in\": 3600\n}"
+            },
+            {
+              "name": "401 Unauthorized - wrong credentials",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"demo\",\n  \"password\": \"wrong-password\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"invalid_credentials\"\n}"
+            },
+            {
+              "name": "422 Unprocessable Content - missing fields",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Unprocessable Content",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"invalid_params\",\n  \"details\": {\n    \"username\": \"must be a non-empty string\",\n    \"password\": \"must be a non-empty string\"\n  }\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Get an access token. Run **Log in** first: it saves the token for every other request."
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "Create product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{productName}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "**What it does**\n\nAsks for a product to be created **about 5 seconds later**. It doesn't create the product: it records a *creation request* and schedules a background job that creates it. Follow the request with **Get creation status** (the test script saves its id in `requestId`).\n\nIt is **idempotent by name**: a user can't have two products with the same name (compared case-insensitively), so sending the same name again never creates a second product.\n\n**Input**\n\n- Headers: `Authorization: Bearer {{token}}`, `Content-Type: application/json`\n- Body:\n\n| Field | Type | Required | Description |\n|---|---|---|---|\n| `name` | string | yes | 1 to 255 characters. Leading and trailing spaces are removed. Unique per user, ignoring case. |\n\n```json\n{\"name\": \"Termo\"}\n```\n\n**Output**\n\nThe body is the creation request:\n\n| Field | Description |\n|---|---|\n| `id` | Request id, to follow it with **Get creation status**. |\n| `name` | Product name. |\n| `status` | `pending`, `completed` or `failed`. |\n| `product_id` | The created product's id once `completed`, otherwise `null`. |\n| `error` | Why it `failed`, otherwise `null`. |\n| `created_at` | When it was requested (ISO 8601, UTC). |\n\n| Status | When |\n|---|---|\n| `202` | New name, or a request for this name is already pending (the same request is returned). Comes with `Location: /products/requests/{id}` and `Retry-After: 5`. |\n| `200` | The product already exists: returns the completed request that created it. |\n| `422` | The name is missing, empty, not a string or longer than 255 characters. |\n| `503` | The job queue is down. The request is recorded as `failed`, so retrying later is safe. |\n| `401` | Missing, invalid or expired token. |\n| `400` / `413` / `415` | Body not a JSON object / larger than 16 KB / wrong `Content-Type`. |"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('accepted (202) or already exists (200)', () => pm.expect(pm.response.code).to.be.oneOf([200, 202]));",
+                  "pm.collectionVariables.set('requestId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "202 Accepted - creation scheduled",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/products",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{productName}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Location",
+                  "value": "/products/requests/42"
+                },
+                {
+                  "key": "Retry-After",
+                  "value": "5"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"id\": 42,\n  \"name\": \"Termo\",\n  \"status\": \"pending\",\n  \"product_id\": null,\n  \"error\": null,\n  \"created_at\": \"2026-11-19T16:32:11Z\"\n}"
+            },
+            {
+              "name": "200 OK - product already exists",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/products",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{productName}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Location",
+                  "value": "/products/requests/42"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"id\": 42,\n  \"name\": \"Termo\",\n  \"status\": \"completed\",\n  \"product_id\": 7,\n  \"error\": null,\n  \"created_at\": \"2026-11-19T16:32:11Z\"\n}"
+            },
+            {
+              "name": "422 Unprocessable Content - invalid name",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/products",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Content",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"invalid_params\",\n  \"details\": {\n    \"name\": \"must be a non-empty string of at most 255 characters\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get creation status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/requests/{{requestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "requests",
+                "{{requestId}}"
+              ]
+            },
+            "description": "**What it does**\n\nReturns the status of a creation request made with **Create product**. A request is `pending` for about 5 seconds and then becomes `completed` (or `failed`). Uses the `requestId` saved by **Create product**.\n\n**Input**\n\n- Headers: `Authorization: Bearer {{token}}`\n- Path parameter:\n\n| Parameter | Type | Description |\n|---|---|---|\n| `id` | integer | The request id (`id` in the **Create product** response, or the end of its `Location` header). |\n\n**Output**\n\n| Status | When | Body |\n|---|---|---|\n| `200` | The request exists and belongs to the user. | The creation request (same fields as **Create product**). |\n| `404` | No request with that id for this user. Another user's request is also reported as not found. | `{\"error\": \"not_found\"}` |\n| `401` | Missing, invalid or expired token. | `{\"error\": \"invalid_token\"}` |\n\n`status` values:\n\n- `pending`: the product will be created shortly.\n- `completed`: the product exists, and its id is in `product_id`.\n- `failed`: the product was not created, and `error` says why. It can be `name_taken` (a product with that name appeared first), `queue_unavailable` (the job queue was down) or `processing_failed` (the creation kept failing after several retries). A new request for the same name can be made."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));",
+                  "console.log('status:', pm.response.json().status);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK - pending",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/products/requests/{{requestId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products",
+                    "requests",
+                    "{{requestId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"id\": 42,\n  \"name\": \"Termo\",\n  \"status\": \"pending\",\n  \"product_id\": null,\n  \"error\": null,\n  \"created_at\": \"2026-11-19T16:32:11Z\"\n}"
+            },
+            {
+              "name": "200 OK - completed",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/products/requests/{{requestId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products",
+                    "requests",
+                    "{{requestId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"id\": 42,\n  \"name\": \"Termo\",\n  \"status\": \"completed\",\n  \"product_id\": 7,\n  \"error\": null,\n  \"created_at\": \"2026-11-19T16:32:11Z\"\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/products/requests/{{requestId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products",
+                    "requests",
+                    "{{requestId}}"
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"not_found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "**What it does**\n\nLists the authenticated user's products, oldest first. Only products whose creation has completed are included, and a user never sees another user's products. Results come in pages, and the test script saves `next_cursor` for **List products (next page)**.\n\n**Input**\n\n- Headers: `Authorization: Bearer {{token}}`\n- Query parameters (all optional):\n\n| Parameter | Type | Default | Description |\n|---|---|---|---|\n| `limit` | integer | `20` | Products per page, from 1 to 100. |\n| `after` | string | — | The `next_cursor` of the previous page. Omit it for the first page. |\n\n**Output**\n\n| Status | When | Body |\n|---|---|---|\n| `200` | Always, for a valid token and parameters (an empty list if the user has no products). | `{\"data\": [...], \"next_cursor\": \"...\"}` |\n| `422` | Invalid `limit` or `after`. | `{\"error\": \"invalid_params\", \"details\": {\"limit\": \"must be an integer between 1 and 100\"}}` |\n| `401` | Missing, invalid or expired token. | `{\"error\": \"missing_token\"}` |\n\n| Field | Description |\n|---|---|\n| `data` | The products of this page: `id`, `name` and `created_at` (ISO 8601, UTC). |\n| `next_cursor` | Send it as `after` to get the next page. `null` when there are no more pages. |"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('nextCursor', pm.response.json().next_cursor || '');"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK - a page with more pages after it",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/products?limit=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products"
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"Mate\",\n      \"created_at\": \"2026-11-19T16:32:16Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"Termo\",\n      \"created_at\": \"2026-11-19T16:35:02Z\"\n    }\n  ],\n  \"next_cursor\": \"2\"\n}"
+            },
+            {
+              "name": "200 OK - no products",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/products?limit=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products"
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"data\": [],\n  \"next_cursor\": null\n}"
+            },
+            {
+              "name": "422 Unprocessable Content - invalid limit",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/products?limit=0"
+              },
+              "status": "Unprocessable Content",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"invalid_params\",\n  \"details\": {\n    \"limit\": \"must be an integer between 1 and 100\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List products (next page)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?limit=20&after={{nextCursor}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "after",
+                  "value": "{{nextCursor}}"
+                }
+              ]
+            },
+            "description": "**What it does**\n\nGets the next page of **List products**, using the `next_cursor` that request saved in the `nextCursor` collection variable. It is skipped automatically when there is no next page (the user has 20 products or fewer).\n\n**Input**\n\n- Headers: `Authorization: Bearer {{token}}`\n- Query parameters:\n\n| Parameter | Type | Description |\n|---|---|---|\n| `limit` | integer | Products per page, from 1 to 100 (default 20). |\n| `after` | string | `{{nextCursor}}`: the `next_cursor` of the previous page. |\n\n**Output**\n\n| Status | When | Body |\n|---|---|---|\n| `200` | Always, for a valid token and parameters (an empty list if the user has no products). | `{\"data\": [...], \"next_cursor\": \"...\"}` |\n| `422` | Invalid `limit` or `after`. | `{\"error\": \"invalid_params\", \"details\": {\"limit\": \"must be an integer between 1 and 100\"}}` |\n| `401` | Missing, invalid or expired token. | `{\"error\": \"missing_token\"}` |\n\n| Field | Description |\n|---|---|\n| `data` | The products of this page: `id`, `name` and `created_at` (ISO 8601, UTC). |\n| `next_cursor` | Send it as `after` to get the next page. `null` when there are no more pages. |"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('nextCursor')) {",
+                  "  console.log('No next page: run List products with more than 20 products first.');",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK - last page",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/products?limit=20&after={{nextCursor}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products"
+                  ],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    },
+                    {
+                      "key": "after",
+                      "value": "{{nextCursor}}"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"data\": [\n    {\n      \"id\": 21,\n      \"name\": \"Bombilla\",\n      \"created_at\": \"2026-11-19T17:02:40Z\"\n    }\n  ],\n  \"next_cursor\": null\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Create and list the authenticated user's products. Creation is asynchronous: **Create product** returns a request, which becomes `completed` about 5 seconds later."
+    },
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "**What it does**\n\nReports whether the API is up and can reach its database. Public: no token needed. Docker uses it as the `web` container's health check.\n\n**Input**\n\nNone.\n\n**Output**\n\n| Status | When | Body |\n|---|---|---|\n| `200` | The API and the database are up. | `{\"status\": \"ok\"}` |\n| `503` | The database is unreachable. | `{\"status\": \"unavailable\"}` |"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"status\": \"ok\"\n}"
+            },
+            {
+              "name": "503 Service Unavailable",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Service Unavailable",
+              "code": 503,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"status\": \"unavailable\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "AUTHORS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/AUTHORS",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "AUTHORS"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "**What it does**\n\nReturns the static `AUTHORS` file, with the author's name. Public: no token needed. Clients and proxies may cache it for 24 hours.\n\n**Input**\n\n- Optional header `If-None-Match`: the `ETag` of a copy you already have. If the file didn't change, the response is an empty `304`.\n\n**Output**\n\n| Status | When | Body |\n|---|---|---|\n| `200` | Always, unless `If-None-Match` matches. | The file, as plain text. |\n| `304` | `If-None-Match` matches the current `ETag`: your copy is still valid. | Empty. |\n\nHeaders of the `200` response:\n\n| Header | Value |\n|---|---|\n| `Content-Type` | `text/plain; charset=utf-8` |\n| `Cache-Control` | `public, max-age=86400` (24 hours) |\n| `ETag` | A fingerprint of the content, for `If-None-Match`. |\n| `Last-Modified` | When the file last changed. |"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('cacheable for 24 hours', () => pm.response.to.have.header('Cache-Control', 'public, max-age=86400'));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/AUTHORS",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "AUTHORS"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain; charset=utf-8"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "public, max-age=86400"
+                },
+                {
+                  "key": "ETag",
+                  "value": "\"0a8d59d8609ac72aea60d556503df6630c8d303e0d1f1aa4068dcc779c646022\""
+                },
+                {
+                  "key": "Last-Modified",
+                  "value": "Wed, 18 Nov 2026 16:21:47 GMT"
+                }
+              ],
+              "_postman_previewlanguage": "text",
+              "body": "Maribel Katherine Claros\n"
+            }
+          ]
+        }
+      ],
+      "description": "Endpoints that don't need a token."
+    },
+    {
+      "name": "Error examples",
+      "item": [
+        {
+          "name": "Log in with a wrong password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"wrong-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "**What it does**\n\nShows the response to a failed login. A wrong password and a username that doesn't exist get exactly the same response, so it can't be used to find out which users exist.\n\n**Input**\n\n- Headers: `Content-Type: application/json`\n- Body: `{\"username\": \"{{username}}\", \"password\": \"wrong-password\"}`\n\n**Output**\n\n`401 Unauthorized` with `{\"error\": \"invalid_credentials\"}`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "401 Unauthorized",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"wrong-password\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"invalid_credentials\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List products without a token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "**What it does**\n\nShows what happens when a protected endpoint is called without a token. Every endpoint except `/auth`, `/health` and `/AUTHORS` requires one.\n\n**Input**\n\nNo `Authorization` header (the request's auth is set to *No Auth*).\n\n**Output**\n\n`401 Unauthorized` with `{\"error\": \"missing_token\"}` and the header `WWW-Authenticate: Bearer`. With an invalid or expired token, the code is `invalid_token`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "401 Unauthorized",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/products",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "WWW-Authenticate",
+                  "value": "Bearer"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"missing_token\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create product with an empty name",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "**What it does**\n\nShows a validation error: the name must be a non-empty string of at most 255 characters.\n\n**Input**\n\n- Headers: `Authorization: Bearer {{token}}`, `Content-Type: application/json`\n- Body: `{\"name\": \"\"}`\n\n**Output**\n\n`422 Unprocessable Content`. Validation errors list each invalid field in `details`:\n\n```json\n{\"error\": \"invalid_params\", \"details\": {\"name\": \"must be a non-empty string of at most 255 characters\"}}\n```"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "422 Unprocessable Content",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/products",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "products"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Content",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"invalid_params\",\n  \"details\": {\n    \"name\": \"must be a non-empty string of at most 255 characters\"\n  }\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Some error responses, to see their format. Every error is a JSON object with an `error` code and, for validation errors, a `details` object."
+    }
+  ]
+}

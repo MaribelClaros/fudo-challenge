@@ -2,7 +2,6 @@
 
 require 'sidekiq'
 
-# The API only enqueues jobs (client); the worker process runs them (server). Both talk to Redis.
 Sidekiq.configure_client do |config|
   config.redis = { url: Settings.redis_url }
 end

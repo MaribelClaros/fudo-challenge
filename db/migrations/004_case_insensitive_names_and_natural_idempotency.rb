@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# - Product names become unique per user regardless of case ("Mate" and "mate" are the same product).
-# - Creation requests are deduplicated by (user, name), so the Idempotency-Key column is no longer needed.
 Sequel.migration do
   up do
     alter_table(:products) do

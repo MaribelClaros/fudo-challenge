@@ -1,3 +1,18 @@
+# Everything:          docker compose up --build
+# Only the databases:  docker compose up -d postgres redis   (to run the app and tests on your machine)
+
+x-app: &app
+  build: .
+  image: fudo-challenge
+  environment:
+    RACK_ENV: production
+    DATABASE_URL: postgres://fudo:fudo@postgres:5432/fudo_development
+    REDIS_URL: redis://redis:6379/0
+    # Development-only default. Set JWT_SECRET in your shell to use your own (at least 32 characters).
+    JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-secret-do-not-use-in-production}
+    JWT_TTL_SECONDS: 3600
+    DB_POOL: 5
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -11,7 +26,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fudo"]
+      test: ["CMD-SHELL", "pg_isready -U fudo -d fudo_development"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -25,6 +40,41 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Runs once: applies migrations and creates the demo user (demo / demo-password), then exits.
+  setup:
+    <<: *app
+    command: ["bundle", "exec", "rake", "db:migrate", "db:seed"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # The API, on http://localhost:9292
+  web:
+    <<: *app
+    command: ["bundle", "exec", "puma"]
+    ports:
+      - "9292:9292"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9292/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Sidekiq: creates the products 5 seconds after they are requested.
+  worker:
+    <<: *app
+    command: ["bundle", "exec", "sidekiq", "-r", "./config/worker.rb"]
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
 volumes:
   postgres_data:

@@ -1,0 +1,542 @@
+openapi: 3.1.0
+info:
+  title: Fudo Challenge API
+  version: 1.0.0
+  summary: Authentication and asynchronous product creation, built on plain Rack.
+  description: |
+    ## Authentication
+    Get an access token from `POST /auth` and send it on every other request:
+
+    ```
+    Authorization: Bearer <access_token>
+    ```
+
+    Tokens are JWTs valid for 1 hour (`expires_in`). When one expires, log in again.
+    `/health`, `/auth` and `/AUTHORS` are public.
+
+    ## Asynchronous product creation
+    `POST /products` does not create the product: it records a **creation request** and
+    answers `202 Accepted`. The product is created about **5 seconds later** by a background
+    worker. Follow the request at the URL in the `Location` header (`GET /products/requests/{id}`)
+    until its `status` is `completed` (or `failed`). Once completed, the product shows up in
+    `GET /products`.
+
+    Requests are **idempotent by name**: a user can't have two products with the same name
+    (compared case-insensitively), so asking again for a name that is pending or already
+    created returns the existing request instead of creating anything.
+
+    ## Compression
+    Responses are compressed with gzip when the request sends `Accept-Encoding: gzip`.
+
+    ## Errors
+    Errors are JSON objects with a machine-readable `error` code and, for validation errors,
+    a `details` object with one message per invalid field:
+
+    ```json
+    {"error": "invalid_params", "details": {"name": "must be a non-empty string of at most 255 characters"}}
+    ```
+
+    Unknown paths return `404 not_found` (`401` without a valid token, so routes can't be
+    probed anonymously), and a known path with the wrong method returns
+    `405 method_not_allowed` with an `Allow` header.
+servers:
+  - url: http://localhost:9292
+    description: Local (docker compose up)
+security:
+  - bearerAuth: []
+tags:
+  - name: Authentication
+    description: Get an access token.
+  - name: Products
+    description: The authenticated user's products and their asynchronous creation.
+  - name: Public
+    description: Endpoints that don't need a token.
+
+paths:
+  /auth:
+    post:
+      tags: [Authentication]
+      summary: Log in
+      description: Exchanges a username and password for an access token.
+      operationId: logIn
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Credentials'
+            example:
+              username: demo
+              password: demo-password
+      responses:
+        '200':
+          description: Valid credentials. The response must not be cached.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessToken'
+        '400':
+          $ref: '#/components/responses/InvalidJson'
+        '401':
+          description: >-
+            Wrong username or password. The response is identical in both cases, so it
+            doesn't reveal which usernames exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid_credentials
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          description: A field is missing, empty or not a string.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid_params
+                details:
+                  username: must be a non-empty string
+                  password: must be a non-empty string
+
+  /products:
+    get:
+      tags: [Products]
+      summary: List my products
+      description: |
+        The authenticated user's products, oldest first, paginated by cursor. Only products
+        whose creation has completed are listed. To get the next page, send the
+        `next_cursor` of the previous response as `after`.
+      operationId: listProducts
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of products in the page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: after
+          in: query
+          description: The `next_cursor` of the previous page. Omit it for the first page.
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+      responses:
+        '200':
+          description: A page of products.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPage'
+              example:
+                data:
+                  - id: 1
+                    name: Mate
+                    created_at: '2026-11-19T16:32:16Z'
+                  - id: 2
+                    name: Yerba
+                    created_at: '2026-11-19T16:35:02Z'
+                next_cursor: '2'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: Invalid `limit` or `after`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid_params
+                details:
+                  limit: must be an integer between 1 and 100
+
+    post:
+      tags: [Products]
+      summary: Request a product creation
+      description: |
+        Asks for a product to be created about 5 seconds later. Leading and trailing
+        whitespace is removed from the name.
+
+        - **202**: a creation is pending for this name (just accepted, or already under way:
+          the same request is returned and nothing new is scheduled). Poll the `Location` URL.
+        - **200**: the user already has a product with this name (compared case-insensitively).
+          The request that created it is returned, with `status: completed`.
+
+        Sending the same name any number of times never creates a second product. If a previous
+        request for the name `failed`, a new one is accepted.
+      operationId: requestProductCreation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewProduct'
+            example:
+              name: Mate
+      responses:
+        '202':
+          description: The creation is pending.
+          headers:
+            Location:
+              $ref: '#/components/headers/RequestLocation'
+            Retry-After:
+              description: Seconds to wait before checking the request status.
+              schema:
+                type: integer
+                example: 5
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductRequest'
+              example:
+                id: 42
+                name: Mate
+                status: pending
+                product_id: null
+                error: null
+                created_at: '2026-11-19T16:32:11Z'
+        '200':
+          description: The product already exists.
+          headers:
+            Location:
+              $ref: '#/components/headers/RequestLocation'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductRequest'
+              example:
+                id: 42
+                name: Mate
+                status: completed
+                product_id: 7
+                error: null
+                created_at: '2026-11-19T16:32:11Z'
+        '400':
+          $ref: '#/components/responses/InvalidJson'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          description: The name is missing, empty, not a string or longer than 255 characters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid_params
+                details:
+                  name: must be a non-empty string of at most 255 characters
+        '503':
+          description: >-
+            The job queue is unavailable. The request is recorded as `failed`
+            (`queue_unavailable`), so retrying later is safe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: queue_unavailable
+
+  /products/requests/{id}:
+    get:
+      tags: [Products]
+      summary: Get a creation request
+      description: >-
+        The status of one of the authenticated user's creation requests. Another user's
+        request is reported as not found.
+      operationId: getProductRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: The request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductRequest'
+              examples:
+                pending:
+                  summary: Still being processed
+                  value:
+                    id: 42
+                    name: Mate
+                    status: pending
+                    product_id: null
+                    error: null
+                    created_at: '2026-11-19T16:32:11Z'
+                completed:
+                  summary: The product was created
+                  value:
+                    id: 42
+                    name: Mate
+                    status: completed
+                    product_id: 7
+                    error: null
+                    created_at: '2026-11-19T16:32:11Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No request with that id for this user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: not_found
+
+  /AUTHORS:
+    get:
+      tags: [Public]
+      summary: Get the AUTHORS file
+      description: |
+        A static text file with the author's name. Clients and proxies may cache it for
+        24 hours. Afterwards, send the `ETag` back in `If-None-Match` to get an empty
+        `304 Not Modified` if it didn't change.
+      operationId: getAuthors
+      security: []
+      parameters:
+        - name: If-None-Match
+          in: header
+          description: The `ETag` of a cached copy.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The file.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: public, max-age=86400
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                Maribel Katherine Claros
+        '304':
+          description: The cached copy is still current.
+
+  /health:
+    get:
+      tags: [Public]
+      summary: Health check
+      description: Reports whether the API and its database are up. Used by Docker's healthcheck.
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                status: ok
+        '503':
+          description: The database is unreachable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                status: unavailable
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: The `access_token` returned by `POST /auth`.
+
+  headers:
+    RequestLocation:
+      description: URL of the creation request, to follow its status.
+      schema:
+        type: string
+        example: /products/requests/42
+
+  responses:
+    Unauthorized:
+      description: The token is missing (`missing_token`), invalid or expired (`invalid_token`).
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            const: Bearer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            missing:
+              value:
+                error: missing_token
+            invalid:
+              value:
+                error: invalid_token
+    InvalidJson:
+      description: The body is not a JSON object.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: invalid_json
+    PayloadTooLarge:
+      description: The body is larger than 16 KB.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: payload_too_large
+    UnsupportedMediaType:
+      description: The `Content-Type` is not `application/json`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: unsupported_media_type
+
+  schemas:
+    Credentials:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Case-sensitive.
+        password:
+          type: string
+          minLength: 1
+
+    AccessToken:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+          description: 'A JWT to send as `Authorization: Bearer <access_token>`.'
+        token_type:
+          type: string
+          const: Bearer
+        expires_in:
+          type: integer
+          description: Seconds until the token expires.
+          example: 3600
+
+    NewProduct:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Unique per user, ignoring case. Leading and trailing whitespace is removed.
+
+    Product:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ProductPage:
+      type: object
+      required: [data, next_cursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        next_cursor:
+          type: [string, 'null']
+          description: Send it as `after` to get the next page. `null` on the last page.
+
+    ProductRequest:
+      type: object
+      required: [id, name, status, product_id, error, created_at]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, failed]
+          description: |
+            - `pending`: the product will be created shortly.
+            - `completed`: the product exists (`product_id`).
+            - `failed`: the creation didn't happen (`error` says why). A new request can be made.
+        product_id:
+          type: [integer, 'null']
+          description: The created product, once `completed`.
+        error:
+          type: [string, 'null']
+          enum: [name_taken, queue_unavailable, processing_failed, null]
+          description: |
+            Why the request `failed`:
+            - `name_taken`: a product with that name appeared before this request was processed.
+            - `queue_unavailable`: the job queue was down when the request arrived.
+            - `processing_failed`: the creation kept failing after several retries.
+        created_at:
+          type: string
+          format: date-time
+
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, unavailable]
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code.
+          example: invalid_params
+        details:
+          type: object
+          description: For validation errors, a message for each invalid field.
+          additionalProperties:
+            type: string
