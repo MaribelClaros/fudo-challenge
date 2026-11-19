@@ -1,7 +1,5 @@
 # Fudo Challenge — Products API
 
-[![CI](https://github.com/MaribelClaros/fudo-challenge/actions/workflows/ci.yml/badge.svg)](https://github.com/MaribelClaros/fudo-challenge/actions/workflows/ci.yml)
-
 A RESTful API built on plain [Rack](https://github.com/rack/rack) that lets users:
 
 - **log in** with a username and password, stored hashed with bcrypt, to get a JWT
